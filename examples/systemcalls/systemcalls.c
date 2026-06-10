@@ -1,3 +1,8 @@
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdlib.h>
 #include "systemcalls.h"
 
 /**
@@ -9,15 +14,19 @@
 */
 bool do_system(const char *cmd)
 {
+    int ret = system(cmd);
 
-/*
- * TODO  add your code here
- *  Call the system() function with the command set in the cmd
- *   and return a boolean true if the system() call completed with success
- *   or false() if it returned a failure
-*/
+    if (ret == -1)
+    {
+        return false;
+    }
 
-    return true;
+    if (WIFEXITED(ret) && WEXITSTATUS(ret) == 0)
+    {
+        return true;
+    }
+
+    return false;
 }
 
 /**
@@ -38,30 +47,46 @@ bool do_exec(int count, ...)
 {
     va_list args;
     va_start(args, count);
-    char * command[count+1];
-    int i;
-    for(i=0; i<count; i++)
+
+    char *command[count + 1];
+
+    for (int i = 0; i < count; i++)
     {
         command[i] = va_arg(args, char *);
     }
-    command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
 
-/*
- * TODO:
- *   Execute a system command by calling fork, execv(),
- *   and wait instead of system (see LSP page 161).
- *   Use the command[0] as the full path to the command to execute
- *   (first argument to execv), and use the remaining arguments
- *   as second argument to the execv() command.
- *
-*/
+    command[count] = NULL;
+
+    pid_t pid = fork();
+
+    if (pid < 0)
+    {
+        va_end(args);
+        return false;
+    }
+
+    if (pid == 0)
+    {
+        execv(command[0], command);
+        exit(EXIT_FAILURE);
+    }
+
+    int status;
+
+    if (waitpid(pid, &status, 0) == -1)
+    {
+        va_end(args);
+        return false;
+    }
 
     va_end(args);
 
-    return true;
+    if (WIFEXITED(status) && WEXITSTATUS(status) == 0)
+    {
+        return true;
+    }
+
+    return false;
 }
 
 /**
@@ -73,27 +98,54 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
 {
     va_list args;
     va_start(args, count);
-    char * command[count+1];
-    int i;
-    for(i=0; i<count; i++)
+
+    char *command[count + 1];
+
+    for (int i = 0; i < count; i++)
     {
         command[i] = va_arg(args, char *);
     }
+
     command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
 
+    pid_t pid = fork();
 
-/*
- * TODO
- *   Call execv, but first using https://stackoverflow.com/a/13784315/1446624 as a refernce,
- *   redirect standard out to a file specified by outputfile.
- *   The rest of the behaviour is same as do_exec()
- *
-*/
+    if (pid < 0)
+    {
+        va_end(args);
+        return false;
+    }
+
+    if (pid == 0)
+    {
+        int fd = open(outputfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+
+        if (fd < 0)
+        {
+            exit(EXIT_FAILURE);
+        }
+
+        dup2(fd, STDOUT_FILENO);
+        close(fd);
+
+        execv(command[0], command);
+        exit(EXIT_FAILURE);
+    }
+
+    int status;
+
+    if (waitpid(pid, &status, 0) == -1)
+    {
+        va_end(args);
+        return false;
+    }
 
     va_end(args);
 
-    return true;
+    if (WIFEXITED(status) && WEXITSTATUS(status) == 0)
+    {
+        return true;
+    }
+
+    return false;
 }
