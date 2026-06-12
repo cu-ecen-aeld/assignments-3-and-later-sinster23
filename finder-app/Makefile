@@ -1,13 +1,21 @@
-CC=$(CROSS_COMPILE)gcc
-CFLAGS=-Wall -Werror
+# Optional: specify cross compiler with make CROSS_COMPILE=aarch64-none-linux-gnu-
+CROSS_COMPILE ?=
 
-all: writer
+# Compiler
+CC := $(CROSS_COMPILE)gcc
 
-writer: writer.o
-	$(CC) $(CFLAGS) -o writer writer.o
+# Flags
+CFLAGS := -Wall -Wextra -g
 
-writer.o: writer.c
-	$(CC) $(CFLAGS) -c writer.c
+# Source and Target
+SRC := writer.c
+TARGET := writer
+
+# Default target
+all: $(TARGET)
+
+$(TARGET): $(SRC)
+	$(CC) $(CFLAGS) -o $(TARGET) $(SRC)
 
 clean:
-	rm -f writer *.o
+	rm -f writer
